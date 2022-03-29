@@ -307,7 +307,10 @@ export function handleMessages(message, sender, sendResponse) {
 
   if (message.type == MESSAGE_TYPE.LOAD_MANIFEST) {
     // validate manifest
-    if ([ORIGIN_TYPE.FACEBOOK].includes(message.origin)) {
+    if (
+      [ORIGIN_TYPE.FACEBOOK].includes(message.origin) ||
+      [ORIGIN_TYPE.MESSENGER].includes(message.origin)
+    ) {
       validateMetaCompanyManifest(
         message.rootHash,
         message.otherHashes,
@@ -440,6 +443,30 @@ export function handleMessages(message, sender, sendResponse) {
 
   if (message.type == MESSAGE_TYPE.RAW_JS) {
     const origin = manifestCache.get(message.origin);
+    const allowList = [
+      'requireLazy',
+      'var hc=navigator',
+      'window.__onSSRPayload',
+      'window.__logSSRQPL',
+      '$RX',
+      '$RC',
+      '$RS',
+      'window.pldmp',
+      'qpl_inl',
+      'SSRInit',
+      'Adblock Plus',
+      'Chrome will not run content scripts inside of frames',
+    ];
+    let inAllowList = false;
+    allowList.forEach(element => {
+      // ignore these inline scripts for now
+      if (message.rawjs.indexOf(element) >= 0) {
+        inAllowList = true;
+      }
+    });
+    if (inAllowList) {
+      return true;
+    }
     if (!origin) {
       addDebugLog(
         sender.tab.id,

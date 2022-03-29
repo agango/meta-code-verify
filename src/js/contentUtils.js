@@ -239,10 +239,7 @@ const DOM_EVENTS = [
   'onwebkittransitionend',
   'onwheel',
 ];
-// store script urls as we find them so we can fetch them later if user wants to download JS src
-const scriptUrls = [];
-// store inline scripts and their hashes as we find them
-const inlineScripts = [];
+
 const foundScripts = new Map();
 foundScripts.set('', []);
 let currentState = ICON_STATE.VALID;
@@ -274,7 +271,13 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     let roothash = rawManifest.root;
     let version = rawManifest.version;
 
-    if ([ORIGIN_TYPE.FACEBOOK].includes(currentOrigin)) {
+    if (
+      [ORIGIN_TYPE.FACEBOOK].includes(currentOrigin) ||
+      [ORIGIN_TYPE.MESSENGER].includes(currentOrigin)
+    ) {
+      if ([ORIGIN_TYPE.MESSENGER].includes(currentOrigin)) {
+        console.log('FOUND MESSENGER MANIFEST');
+      }
       leaves = rawManifest.manifest;
       otherHashes = rawManifest.manifest_hashes;
       otherType = scriptNodeMaybe.getAttribute('data-manifest-type');
@@ -333,6 +336,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
             });
             return;
           }
+          console.log('error in store found js');
           currentState = ICON_STATE.INVALID_SOFT;
           chrome.runtime.sendMessage({
             type: MESSAGE_TYPE.UPDATE_ICON,
@@ -430,6 +434,7 @@ export function hasViolatingJavaScriptURI(htmlElement) {
         type: MESSAGE_TYPE.DEBUG,
         log: 'violating attribute: javascript url in anchor tag',
       });
+      console.log('violating javscript uri');
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -452,7 +457,20 @@ export function hasInvalidAttributes(htmlElement) {
   ) {
     Array.from(htmlElement.attributes).forEach(elementAttribute => {
       // check first for violating attributes
+      let invalidBool = false;
       if (DOM_EVENTS.indexOf(elementAttribute.localName) >= 0) {
+        if (
+          elementAttribute.localName == 'onerror' ||
+          elementAttribute.localName == 'onload'
+        ) {
+          if (elementAttribute.value.indexOf('_btldr') < 0) {
+            invalidBool = true;
+          }
+        } else {
+          invalidBool = true;
+        }
+      }
+      if (invalidBool) {
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.DEBUG,
           log:
@@ -461,6 +479,7 @@ export function hasInvalidAttributes(htmlElement) {
             ' from element ' +
             htmlElement.outerHTML,
         });
+        console.log(`invalid attributes ${elementAttribute.localName}`);
         currentState = ICON_STATE.INVALID_SOFT;
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.UPDATE_ICON,
@@ -574,7 +593,6 @@ export const processFoundJS = (origin, version) => {
   let pendingScriptCount = scripts.length;
   scripts.forEach(script => {
     if (script.src) {
-      scriptUrls.push(script.src);
       chrome.runtime.sendMessage(
         {
           type: script.type,
@@ -592,6 +610,7 @@ export const processFoundJS = (origin, version) => {
               });
             }
           } else {
+            console.log(`src script not valid ${script.src}`);
             if (response.type === 'EXTENSION') {
               currentState = ICON_STATE.WARNING_RISK;
               chrome.runtime.sendMessage({
@@ -627,10 +646,7 @@ export const processFoundJS = (origin, version) => {
         },
         response => {
           pendingScriptCount--;
-          let inlineScriptMap = new Map();
           if (response.valid) {
-            inlineScriptMap.set(response.hash, script.rawjs);
-            inlineScripts.push(inlineScriptMap);
             if (pendingScriptCount == 0 && currentState == ICON_STATE.VALID) {
               chrome.runtime.sendMessage({
                 type: MESSAGE_TYPE.UPDATE_ICON,
@@ -638,8 +654,6 @@ export const processFoundJS = (origin, version) => {
               });
             }
           } else {
-            inlineScriptMap.set('hash not in manifest', script.rawjs);
-            inlineScripts.push(inlineScriptMap);
             if (KNOWN_EXTENSION_HASHES.includes(response.hash)) {
               currentState = ICON_STATE.WARNING_RISK;
               chrome.runtime.sendMessage({
@@ -668,71 +682,6 @@ export const processFoundJS = (origin, version) => {
   });
   window.setTimeout(() => processFoundJS(origin, version), 3000);
 };
-
-async function fetchJSSources(sourceStreams) {
-  for (const url of scriptUrls) {
-    let streamMap = new Map();
-    const fileNameArr = url.split('/');
-    const fileName = fileNameArr[fileNameArr.length - 1].split('?')[0];
-    const response = await fetch(url);
-    streamMap.set(
-      fileName,
-      response.body.pipeThrough(new window.CompressionStream('gzip'))
-    );
-    sourceStreams.push(streamMap);
-  }
-}
-
-async function downloadJSToZip() {
-  const fileHandle = await window.showSaveFilePicker({
-    suggestedName: 'meta_source_files.gz',
-  });
-  const sourceStreams = [];
-  await fetchJSSources(sourceStreams);
-
-  const writableStream = await fileHandle.createWritable();
-  // delimiter between files
-  const delimPrefix = '\n********** new file: ';
-  const delimSuffix = ' **********\n';
-  const enc = new TextEncoder();
-
-  for (const compressedStreamMap of sourceStreams) {
-    let fileName = compressedStreamMap.keys().next().value;
-    let compressedStream = compressedStreamMap.values().next().value;
-    let delim = delimPrefix + fileName + delimSuffix;
-    let encodedDelim = enc.encode(delim);
-    let delimStream = new window.CompressionStream('gzip');
-    let writer = delimStream.writable.getWriter();
-    writer.write(encodedDelim);
-    writer.close();
-    await delimStream.readable.pipeTo(writableStream, { preventClose: true });
-    await compressedStream.pipeTo(writableStream, { preventClose: true });
-  }
-
-  for (const inlineSrcMap of inlineScripts) {
-    let inlineHash = inlineSrcMap.keys().next().value;
-    let inlineSrc = inlineSrcMap.values().next().value;
-    let delim = delimPrefix + 'Inline Script ' + inlineHash + delimSuffix;
-    let encodedDelim = enc.encode(delim);
-    let delimStream = new window.CompressionStream('gzip');
-    let delimWriter = delimStream.writable.getWriter();
-    delimWriter.write(encodedDelim);
-    delimWriter.close();
-    await delimStream.readable.pipeTo(writableStream, { preventClose: true });
-    let inlineStream = new window.CompressionStream('gzip');
-    let writer = inlineStream.writable.getWriter();
-    writer.write(enc.encode(inlineSrc));
-    writer.close();
-    await inlineStream.readable.pipeTo(writableStream, { preventClose: true });
-  }
-  writableStream.close();
-}
-
-chrome.runtime.onMessage.addListener(function (request) {
-  if (request.greeting === 'downloadSource') {
-    downloadJSToZip();
-  }
-});
 
 export function startFor(origin) {
   currentOrigin = origin;
