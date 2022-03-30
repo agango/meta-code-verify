@@ -257,6 +257,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     try {
       rawManifest = JSON.parse(scriptNodeMaybe.innerHTML);
     } catch (manfiestParseError) {
+      console.log('error: PARSE ERROR');
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -336,7 +337,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
             });
             return;
           }
-          console.log('error in store found js');
+          console.log('error: error in store found js');
           currentState = ICON_STATE.INVALID_SOFT;
           chrome.runtime.sendMessage({
             type: MESSAGE_TYPE.UPDATE_ICON,
@@ -351,6 +352,9 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     try {
       JSON.parse(scriptNodeMaybe.innerHTML);
     } catch (parseError) {
+      console.log(
+        `error: parse error not manifest ${scriptNodeMaybe.innerHTML}`
+      );
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -364,6 +368,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     scriptNodeMaybe.src !== '' &&
     scriptNodeMaybe.src.indexOf('blob:') === 0
   ) {
+    console.log('error: BLOB');
     // TODO: try to process the blob. For now, flag as warning.
     currentState = ICON_STATE.INVALID_SOFT;
     chrome.runtime.sendMessage({
@@ -375,6 +380,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
   // need to get the src of the JS
   if (scriptNodeMaybe.src != null && scriptNodeMaybe.src !== '') {
     if (scriptList.size === 1) {
+      console.log('pushing js with src');
       scriptList.get(scriptList.keys().next().value).push({
         type: MESSAGE_TYPE.JS_WITH_SRC,
         src: scriptNodeMaybe.src,
@@ -450,7 +456,7 @@ export function hasViolatingJavaScriptURI(htmlElement) {
         type: MESSAGE_TYPE.DEBUG,
         log: 'violating attribute: javascript url in anchor tag',
       });
-      console.log('violating javscript uri');
+      console.log('error: violating javscript uri');
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -495,7 +501,7 @@ export function hasInvalidAttributes(htmlElement) {
             ' from element ' +
             htmlElement.outerHTML,
         });
-        console.log(`invalid attributes ${elementAttribute.localName}`);
+        console.log(`error: invalid attributes ${elementAttribute.localName}`);
         currentState = ICON_STATE.INVALID_SOFT;
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.UPDATE_ICON,
@@ -564,6 +570,7 @@ export const scanForScripts = () => {
             hasInvalidScripts(checkScript, foundScripts);
           });
         } else if (mutation.type === 'attributes') {
+          console.log('error: VIOLATING ATTRIBUTES');
           currentState = ICON_STATE.INVALID_SOFT;
           chrome.runtime.sendMessage({
             type: MESSAGE_TYPE.UPDATE_ICON,
@@ -585,6 +592,7 @@ export const scanForScripts = () => {
       subtree: true,
     });
   } catch (_UnknownError) {
+    console.log('error: UNKNOWN ERROR');
     currentState = ICON_STATE.INVALID_SOFT;
     chrome.runtime.sendMessage({
       type: MESSAGE_TYPE.UPDATE_ICON,
@@ -670,6 +678,7 @@ export const processFoundJS = (origin, version) => {
             });
           }
         } else {
+          console.log(`error: invalid src ${script.src} ${response.reason}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
@@ -712,6 +721,7 @@ export const processFoundJS = (origin, version) => {
               });
             }
           } else {
+            console.log(`error: invalid inline ${script.rawjs}`);
             if (KNOWN_EXTENSION_HASHES.includes(response.hash)) {
               currentState = ICON_STATE.WARNING_RISK;
               chrome.runtime.sendMessage({
