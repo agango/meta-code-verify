@@ -637,9 +637,11 @@ async function processJSWithSrc(script, origin, version) {
             version: version,
           },
           response => {
+            console.log(`RESPONSE ${JSON.stringify(response)}`);
             if (response.valid) {
               resolve();
             } else {
+              console.log(`INVALID ${jsPackage}`);
               reject(response.type);
             }
           }

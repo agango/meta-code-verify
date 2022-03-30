@@ -270,6 +270,7 @@ async function processJSWithSrc(message, manifest, tabId) {
         packageHash
       );
       if (!manifest.leaves.includes(packageHash)) {
+        console.log("leaves don't contain hash");
         return false;
       }
     }
@@ -348,7 +349,10 @@ export function handleMessages(message, sender, sendResponse) {
           });
           sendResponse({ valid: true });
         } else {
-          sendResponse({ valid: false });
+          sendResponse({
+            valid: false,
+            reason: 'validate meta company manifest',
+          });
         }
       });
     } else {
@@ -394,6 +398,7 @@ export function handleMessages(message, sender, sendResponse) {
   }
 
   if (message.type == MESSAGE_TYPE.JS_WITH_SRC) {
+    console.log('JS WITH SOURCE');
     // exclude known extension scripts from analysis
     if (
       message.src.indexOf('chrome-extension://') === 0 ||
@@ -433,6 +438,7 @@ export function handleMessages(message, sender, sendResponse) {
       sendResponse({ valid: false, reason: 'no matching manifest' });
       return;
     }
+    console.log('PROCESS JS WITH SOURCE GETTING CALLED');
     // fetch and process the src
     processJSWithSrc(message, manifestObj, sender.tab.id).then(valid => {
       console.log('sending processJSWithSrc response ', valid);
