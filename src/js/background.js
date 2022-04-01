@@ -308,10 +308,7 @@ export function handleMessages(message, sender, sendResponse) {
 
   if (message.type == MESSAGE_TYPE.LOAD_MANIFEST) {
     // validate manifest
-    if (
-      [ORIGIN_TYPE.FACEBOOK].includes(message.origin) ||
-      [ORIGIN_TYPE.MESSENGER].includes(message.origin)
-    ) {
+    if ([ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(message.origin)) {
       validateMetaCompanyManifest(
         message.rootHash,
         message.otherHashes,
@@ -505,10 +502,10 @@ export function handleMessages(message, sender, sendResponse) {
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
 
-      console.log('generate hash is ', jsHash);
       if (manifestObj.leaves.includes(jsHash)) {
         sendResponse({ valid: true });
       } else {
+        console.log('generate hash is ', jsHash);
         addDebugLog(
           sender.tab.id,
           'Error: hash does not match ' +

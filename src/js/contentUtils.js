@@ -240,6 +240,8 @@ const DOM_EVENTS = [
   'onwheel',
 ];
 
+const sourceScripts = new Map();
+const inlineScripts = [];
 const foundScripts = new Map();
 foundScripts.set('', []);
 let currentState = ICON_STATE.VALID;
@@ -271,13 +273,8 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     let roothash = rawManifest.root;
     let version = rawManifest.version;
 
-    if (
-      [ORIGIN_TYPE.FACEBOOK].includes(currentOrigin) ||
-      [ORIGIN_TYPE.MESSENGER].includes(currentOrigin)
-    ) {
-      if ([ORIGIN_TYPE.MESSENGER].includes(currentOrigin)) {
-        console.log('FOUND MESSENGER MANIFEST');
-      }
+
+    if ([ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(currentOrigin)) {
       leaves = rawManifest.manifest;
       otherHashes = rawManifest.manifest_hashes;
       otherType = scriptNodeMaybe.getAttribute('data-manifest-type');
@@ -349,9 +346,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
 
   if (scriptNodeMaybe.getAttribute('type') === 'application/json') {
     try {
-      if (![ORIGIN_TYPE.FACEBOOK].includes(currentOrigin)) {
-        JSON.parse(scriptNodeMaybe.innerHTML);
-      }
+      JSON.parse(scriptNodeMaybe.textContent);
     } catch (parseError) {
       console.log(
         `error: parse error not manifest ${scriptNodeMaybe.innerHTML}`
@@ -606,9 +601,16 @@ async function processJSWithSrc(script, origin, version) {
   // fetch the script from page context, not the extension context.
   try {
     const sourceResponse = await fetch(script.src, { method: 'GET' });
+    // we want to clone the stream before reading it
+    const sourceResponseClone = sourceResponse.clone();
+    const fileNameArr = script.src.split('/');
+    const fileName = fileNameArr[fileNameArr.length - 1].split('?')[0];
     let sourceText = await sourceResponse.text();
-    let fbOrigin = [ORIGIN_TYPE.FACEBOOK].includes(origin);
-
+    sourceScripts.set(
+      fileName,
+      sourceResponseClone.body.pipeThrough(new window.CompressionStream('gzip'))
+    );
+    let fbOrigin = [ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(origin);
     if (fbOrigin && sourceText.indexOf('if (self.CavalryLogger) {') === 0) {
       sourceText = sourceText.slice(82).trim();
     }
@@ -660,7 +662,7 @@ async function processJSWithSrc(script, origin, version) {
   }
 }
 
-export const processFoundJS = (origin, version) => {
+export const processFoundJS = async (origin, version) => {
   // foundScripts
   const fullscripts = foundScripts.get(version).splice(0);
   const scripts = fullscripts.filter(script => {
@@ -674,9 +676,9 @@ export const processFoundJS = (origin, version) => {
     }
   });
   let pendingScriptCount = scripts.length;
-  scripts.forEach(script => {
+  for (const script of scripts) {
     if (script.src) {
-      processJSWithSrc(script, origin, version).then(response => {
+      await processJSWithSrc(script, origin, version).then(response => {
         pendingScriptCount--;
         if (response.valid) {
           if (pendingScriptCount == 0 && currentState == ICON_STATE.VALID) {
@@ -729,7 +731,9 @@ export const processFoundJS = (origin, version) => {
               });
             }
           } else {
-            console.log(`error: invalid inline ${script.rawjs}`);
+            // using an array of maps, as we're using the same key for inline scripts - this will eventually be removed, once inline scripts are removed from the page load
+            inlineScriptMap.set('hash not in manifest', script.rawjs);
+            inlineScripts.push(inlineScriptMap);
             if (KNOWN_EXTENSION_HASHES.includes(response.hash)) {
               currentState = ICON_STATE.WARNING_RISK;
               chrome.runtime.sendMessage({
@@ -755,9 +759,56 @@ export const processFoundJS = (origin, version) => {
         }
       );
     }
-  });
+  }
   window.setTimeout(() => processFoundJS(origin, version), 3000);
 };
+
+async function downloadJSToZip() {
+  const fileHandle = await window.showSaveFilePicker({
+    suggestedName: 'meta_source_files.gz',
+  });
+
+  const writableStream = await fileHandle.createWritable();
+  // delimiter between files
+  const delimPrefix = '\n********** new file: ';
+  const delimSuffix = ' **********\n';
+  const enc = new TextEncoder();
+
+  for (const [fileName, compressedStream] of sourceScripts.entries()) {
+    let delim = delimPrefix + fileName + delimSuffix;
+    let encodedDelim = enc.encode(delim);
+    let delimStream = new window.CompressionStream('gzip');
+    let writer = delimStream.writable.getWriter();
+    writer.write(encodedDelim);
+    writer.close();
+    await delimStream.readable.pipeTo(writableStream, { preventClose: true });
+    await compressedStream.pipeTo(writableStream, { preventClose: true });
+  }
+
+  for (const inlineSrcMap of inlineScripts) {
+    let inlineHash = inlineSrcMap.keys().next().value;
+    let inlineSrc = inlineSrcMap.values().next().value;
+    let delim = delimPrefix + 'Inline Script ' + inlineHash + delimSuffix;
+    let encodedDelim = enc.encode(delim);
+    let delimStream = new window.CompressionStream('gzip');
+    let delimWriter = delimStream.writable.getWriter();
+    delimWriter.write(encodedDelim);
+    delimWriter.close();
+    await delimStream.readable.pipeTo(writableStream, { preventClose: true });
+    let inlineStream = new window.CompressionStream('gzip');
+    let writer = inlineStream.writable.getWriter();
+    writer.write(enc.encode(inlineSrc));
+    writer.close();
+    await inlineStream.readable.pipeTo(writableStream, { preventClose: true });
+  }
+  writableStream.close();
+}
+
+chrome.runtime.onMessage.addListener(function (request) {
+  if (request.greeting === 'downloadSource') {
+    downloadJSToZip();
+  }
+});
 
 export function startFor(origin) {
   currentOrigin = origin;
