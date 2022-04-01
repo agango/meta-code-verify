@@ -49,6 +49,13 @@ export const ICON_STATE = {
     },
     popup: 'popup.html?state=warning_timeout',
   },
+  KNOWN_WARNING: {
+    // badge: 'warning-badge.svg',
+    badge: {
+      32: 'risk_32.png',
+    },
+    popup: 'popup.html?state=known_warning',
+  },
 };
 
 export const KNOWN_EXTENSION_HASHES = [

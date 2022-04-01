@@ -84,6 +84,12 @@
 		"message": "Download a .zip file containing all running JavaScript on the page."
 	},
 	"i18nDownloadSourceButton": {
-		"message": "Not Working Yet"
+		"message": "Download"
+	},
+	"i18nKnownWarningStatusHeader": {
+		"message": "Warning: known inline scripts "
+	},
+	"i18nKnownWarningStatusMessage": {
+		"message": "Cannot validate - there are known inline scripts embedded in the page"
 	}
 }

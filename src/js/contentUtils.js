@@ -273,7 +273,6 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     let roothash = rawManifest.root;
     let version = rawManifest.version;
 
-
     if ([ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(currentOrigin)) {
       leaves = rawManifest.manifest;
       otherHashes = rawManifest.manifest_hashes;
@@ -333,7 +332,6 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
             });
             return;
           }
-          console.log('error: error in store found js');
           currentState = ICON_STATE.INVALID_SOFT;
           chrome.runtime.sendMessage({
             type: MESSAGE_TYPE.UPDATE_ICON,
@@ -348,9 +346,6 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     try {
       JSON.parse(scriptNodeMaybe.textContent);
     } catch (parseError) {
-      console.log(
-        `error: parse error not manifest ${scriptNodeMaybe.innerHTML}`
-      );
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -364,7 +359,6 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     scriptNodeMaybe.src !== '' &&
     scriptNodeMaybe.src.indexOf('blob:') === 0
   ) {
-    console.log('error: BLOB');
     // TODO: try to process the blob. For now, flag as warning.
     currentState = ICON_STATE.INVALID_SOFT;
     chrome.runtime.sendMessage({
@@ -376,7 +370,6 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
   // need to get the src of the JS
   if (scriptNodeMaybe.src != null && scriptNodeMaybe.src !== '') {
     if (scriptList.size === 1) {
-      console.log('pushing js with src');
       scriptList.get(scriptList.keys().next().value).push({
         type: MESSAGE_TYPE.JS_WITH_SRC,
         src: scriptNodeMaybe.src,
@@ -452,7 +445,6 @@ export function hasViolatingJavaScriptURI(htmlElement) {
         type: MESSAGE_TYPE.DEBUG,
         log: 'violating attribute: javascript url in anchor tag',
       });
-      console.log('error: violating javscript uri');
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -475,20 +467,22 @@ export function hasInvalidAttributes(htmlElement) {
   ) {
     Array.from(htmlElement.attributes).forEach(elementAttribute => {
       // check first for violating attributes
-      let invalidBool = false;
+      let invalidAttribute = false;
+      let flaggedAttribute = false;
       if (DOM_EVENTS.indexOf(elementAttribute.localName) >= 0) {
+        flaggedAttribute = true;
         if (
           elementAttribute.localName == 'onerror' ||
           elementAttribute.localName == 'onload'
         ) {
           if (elementAttribute.value.indexOf('_btldr') < 0) {
-            invalidBool = true;
+            invalidAttribute = true;
           }
         } else {
-          invalidBool = true;
+          invalidAttribute = true;
         }
       }
-      if (invalidBool) {
+      if (invalidAttribute) {
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.DEBUG,
           log:
@@ -497,11 +491,18 @@ export function hasInvalidAttributes(htmlElement) {
             ' from element ' +
             htmlElement.outerHTML,
         });
-        console.log(`error: invalid attributes ${elementAttribute.localName}`);
         currentState = ICON_STATE.INVALID_SOFT;
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.UPDATE_ICON,
           icon: ICON_STATE.INVALID_SOFT,
+        });
+      }
+      // we found an btldr onload or onerror element
+      else if (flaggedAttribute) {
+        currentState = ICON_STATE.KNOWN_WARNING;
+        chrome.runtime.sendMessage({
+          type: MESSAGE_TYPE.UPDATE_ICON,
+          icon: ICON_STATE.KNOWN_WARNING,
         });
       }
     });
@@ -566,7 +567,6 @@ export const scanForScripts = () => {
             hasInvalidScripts(checkScript, foundScripts);
           });
         } else if (mutation.type === 'attributes') {
-          console.log('error: VIOLATING ATTRIBUTES');
           currentState = ICON_STATE.INVALID_SOFT;
           chrome.runtime.sendMessage({
             type: MESSAGE_TYPE.UPDATE_ICON,
@@ -588,7 +588,6 @@ export const scanForScripts = () => {
       subtree: true,
     });
   } catch (_UnknownError) {
-    console.log('error: UNKNOWN ERROR');
     currentState = ICON_STATE.INVALID_SOFT;
     chrome.runtime.sendMessage({
       type: MESSAGE_TYPE.UPDATE_ICON,
@@ -610,7 +609,9 @@ async function processJSWithSrc(script, origin, version) {
       fileName,
       sourceResponseClone.body.pipeThrough(new window.CompressionStream('gzip'))
     );
-    let fbOrigin = [ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(origin);
+    let fbOrigin = [ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(
+      origin
+    );
     if (fbOrigin && sourceText.indexOf('if (self.CavalryLogger) {') === 0) {
       sourceText = sourceText.slice(82).trim();
     }
@@ -639,11 +640,9 @@ async function processJSWithSrc(script, origin, version) {
             version: version,
           },
           response => {
-            console.log(`RESPONSE ${JSON.stringify(response)}`);
             if (response.valid) {
               resolve();
             } else {
-              console.log(`INVALID ${jsPackage}`);
               reject(response.type);
             }
           }
@@ -688,7 +687,7 @@ export const processFoundJS = async (origin, version) => {
             });
           }
         } else {
-          console.log(`error: invalid src ${script.src} ${response.reason}`);
+          console.log(`invalid src ${script.src}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
@@ -723,7 +722,10 @@ export const processFoundJS = async (origin, version) => {
         },
         response => {
           pendingScriptCount--;
+          let inlineScriptMap = new Map();
           if (response.valid) {
+            inlineScriptMap.set(response.hash, script.rawjs);
+            inlineScripts.push(inlineScriptMap);
             if (pendingScriptCount == 0 && currentState == ICON_STATE.VALID) {
               chrome.runtime.sendMessage({
                 type: MESSAGE_TYPE.UPDATE_ICON,
@@ -740,7 +742,15 @@ export const processFoundJS = async (origin, version) => {
                 type: MESSAGE_TYPE.UPDATE_ICON,
                 icon: ICON_STATE.WARNING_RISK,
               });
+            } else if (response.reason === 'inline scripts in allowList') {
+              console.log('inline in allowlist');
+              currentState = ICON_STATE.KNOWN_WARNING;
+              chrome.runtime.sendMessage({
+                type: MESSAGE_TYPE.UPDATE_ICON,
+                icon: ICON_STATE.KNOWN_WARNING,
+              });
             } else {
+              console.log('invalid inline');
               currentState = ICON_STATE.INVALID_SOFT;
               chrome.runtime.sendMessage({
                 type: MESSAGE_TYPE.UPDATE_ICON,

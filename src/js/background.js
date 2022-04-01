@@ -308,7 +308,9 @@ export function handleMessages(message, sender, sendResponse) {
 
   if (message.type == MESSAGE_TYPE.LOAD_MANIFEST) {
     // validate manifest
-    if ([ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(message.origin)) {
+    if (
+      [ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(message.origin)
+    ) {
       validateMetaCompanyManifest(
         message.rootHash,
         message.otherHashes,
@@ -468,7 +470,8 @@ export function handleMessages(message, sender, sendResponse) {
       }
     });
     if (inAllowList) {
-      return true;
+      sendResponse({ valid: false, reason: 'inline elements in allowList' });
+      return;
     }
     if (!origin) {
       addDebugLog(
