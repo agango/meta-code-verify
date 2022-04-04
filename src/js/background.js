@@ -397,7 +397,6 @@ export function handleMessages(message, sender, sendResponse) {
   }
 
   if (message.type == MESSAGE_TYPE.JS_WITH_SRC) {
-    console.log('JS WITH SOURCE');
     // exclude known extension scripts from analysis
     if (
       message.src.indexOf('chrome-extension://') === 0 ||
@@ -437,10 +436,8 @@ export function handleMessages(message, sender, sendResponse) {
       sendResponse({ valid: false, reason: 'no matching manifest' });
       return;
     }
-    console.log('PROCESS JS WITH SOURCE GETTING CALLED');
     // fetch and process the src
     processJSWithSrc(message, manifestObj, sender.tab.id).then(valid => {
-      console.log('sending processJSWithSrc response ', valid);
       sendResponse({ valid: valid });
     });
     return true;
@@ -471,7 +468,7 @@ export function handleMessages(message, sender, sendResponse) {
       }
     });
     if (inAllowList) {
-      sendResponse({ valid: false, reason: 'inline scripts in allowList' });
+      sendResponse({ valid: false, reason: 'inline scripts in allowlist' });
       return;
     }
     if (!origin) {
@@ -506,10 +503,11 @@ export function handleMessages(message, sender, sendResponse) {
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
 
+
       if (manifestObj.leaves.includes(jsHash)) {
         sendResponse({ valid: true });
       } else {
-        console.log('generate hash is ', jsHash);
+        console.log(`generate hash is ${jsHash} ${message.rawjs}`);
         addDebugLog(
           sender.tab.id,
           'Error: hash does not match ' +

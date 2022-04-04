@@ -643,7 +643,11 @@ async function processJSWithSrc(script, origin, version) {
             if (response.valid) {
               resolve();
             } else {
-              reject(response.type);
+              if (response.reason === 'inline scripts in allowlist') {
+                resolve();
+              } else {
+                reject(response.type);
+              }
             }
           }
         );
@@ -687,7 +691,6 @@ export const processFoundJS = async (origin, version) => {
             });
           }
         } else {
-          console.log(`invalid src ${script.src}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
@@ -742,8 +745,7 @@ export const processFoundJS = async (origin, version) => {
                 type: MESSAGE_TYPE.UPDATE_ICON,
                 icon: ICON_STATE.WARNING_RISK,
               });
-            } else if (response.reason === 'inline scripts in allowList') {
-              console.log('inline in allowlist');
+            } else if (response.reason === 'inline scripts in allowlist') {
               if (currentState == ICON_STATE.VALID) {
                 currentState = ICON_STATE.KNOWN_WARNING;
                 chrome.runtime.sendMessage({
@@ -752,7 +754,6 @@ export const processFoundJS = async (origin, version) => {
                 });
               }
             } else {
-              console.log('invalid inline');
               currentState = ICON_STATE.INVALID_SOFT;
               chrome.runtime.sendMessage({
                 type: MESSAGE_TYPE.UPDATE_ICON,
