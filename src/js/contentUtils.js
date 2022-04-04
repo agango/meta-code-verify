@@ -750,7 +750,7 @@ export const processFoundJS = async (origin, version) => {
                 icon: ICON_STATE.KNOWN_WARNING,
               });
             } else {
-              console.log('invalid inline');
+              console.log(`invalid inline ${script.rawjs}`);
               currentState = ICON_STATE.INVALID_SOFT;
               chrome.runtime.sendMessage({
                 type: MESSAGE_TYPE.UPDATE_ICON,

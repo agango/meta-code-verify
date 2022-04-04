@@ -458,6 +458,7 @@ export function handleMessages(message, sender, sendResponse) {
       '$RS',
       'window.pldmp',
       'qpl_inl',
+      'qpl_tag',
       'SSRInit',
       'Adblock Plus',
       'Chrome will not run content scripts inside of frames',
@@ -470,7 +471,7 @@ export function handleMessages(message, sender, sendResponse) {
       }
     });
     if (inAllowList) {
-      sendResponse({ valid: false, reason: 'inline elements in allowList' });
+      sendResponse({ valid: false, reason: 'inline scripts in allowList' });
       return;
     }
     if (!origin) {

@@ -23,9 +23,9 @@
     },
     "content_scripts": [
         {
-            "matches": ["*://*.facebook.com/*"],
+            "matches": ["*://*.messenger.com/*"],
 	    "all_frames": true,
-            "js": ["contentFB.js"],
+            "js": ["contentMSGR.js"],
             "run_at": "document_start"
         },
         {
