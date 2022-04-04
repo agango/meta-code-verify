@@ -503,7 +503,6 @@ export function handleMessages(message, sender, sendResponse) {
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
 
-
       if (manifestObj.leaves.includes(jsHash)) {
         sendResponse({ valid: true });
       } else {
