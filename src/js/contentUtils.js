@@ -744,11 +744,13 @@ export const processFoundJS = async (origin, version) => {
               });
             } else if (response.reason === 'inline scripts in allowList') {
               console.log('inline in allowlist');
-              currentState = ICON_STATE.KNOWN_WARNING;
-              chrome.runtime.sendMessage({
-                type: MESSAGE_TYPE.UPDATE_ICON,
-                icon: ICON_STATE.KNOWN_WARNING,
-              });
+              if (currentState == ICON_STATE.VALID) {
+                currentState = ICON_STATE.KNOWN_WARNING;
+                chrome.runtime.sendMessage({
+                  type: MESSAGE_TYPE.UPDATE_ICON,
+                  icon: ICON_STATE.KNOWN_WARNING,
+                });
+              }
             } else {
               console.log('invalid inline');
               currentState = ICON_STATE.INVALID_SOFT;
