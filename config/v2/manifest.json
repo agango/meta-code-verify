@@ -36,6 +36,9 @@
             "run_at": "document_start"
         }
     ],
+    "permissions": [
+        "tabs"
+    ],
     "host_permissions": [
         "https://*.privacy-auditability.cloudflare.com/"
     ]
