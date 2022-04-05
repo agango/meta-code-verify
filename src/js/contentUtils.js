@@ -498,7 +498,7 @@ export function hasInvalidAttributes(htmlElement) {
         });
       }
       // we found an btldr onload or onerror element
-      else if (flaggedAttribute) {
+      else if (flaggedAttribute && currentState == ICON_STATE.VALID) {
         currentState = ICON_STATE.KNOWN_WARNING;
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.UPDATE_ICON,
@@ -522,7 +522,9 @@ export function hasInvalidScripts(scriptNodeMaybe, scriptList) {
   checkNodesForViolations(scriptNodeMaybe);
 
   if (scriptNodeMaybe.nodeName.toLowerCase() === 'script') {
-    return storeFoundJS(scriptNodeMaybe, scriptList);
+    window.requestIdleCallback(() => {
+      storeFoundJS(scriptNodeMaybe, scriptList);
+    });
   } else if (scriptNodeMaybe.childNodes.length > 0) {
     scriptNodeMaybe.childNodes.forEach(childNode => {
       // if not an HTMLElement ignore it!
@@ -532,13 +534,17 @@ export function hasInvalidScripts(scriptNodeMaybe, scriptList) {
       checkNodesForViolations(childNode);
 
       if (childNode.nodeName.toLowerCase() === 'script') {
-        storeFoundJS(childNode, scriptList);
+        window.requestIdleCallback(() => {
+          storeFoundJS(childNode, scriptList);
+        });
         return;
       }
 
       Array.from(childNode.getElementsByTagName('script')).forEach(
         childScript => {
-          storeFoundJS(childScript, scriptList);
+          window.requestIdleCallback(() => {
+            storeFoundJS(childScript, scriptList);
+          });
         }
       );
     });
@@ -554,7 +560,9 @@ export const scanForScripts = () => {
     checkNodesForViolations(allElement);
     // next check for existing script elements and if they're violating
     if (allElement.nodeName.toLowerCase() === 'script') {
-      storeFoundJS(allElement, foundScripts);
+      window.requestIdleCallback(() => {
+        storeFoundJS(allElement, foundScripts);
+      });
     }
   });
 

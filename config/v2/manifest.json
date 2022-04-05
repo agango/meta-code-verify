@@ -1,5 +1,5 @@
 {
-    "manifest_version": 3,
+    "manifest_version": 2,
     "name": "Code Verify",
     "version": "1.0.3",
     "default_locale": "en",
