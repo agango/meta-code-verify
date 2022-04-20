@@ -240,6 +240,7 @@ const DOM_EVENTS = [
   'onwheel',
 ];
 
+let downloadFeature = true;
 const sourceScripts = new Map();
 const inlineScripts = [];
 const foundScripts = new Map();
@@ -343,15 +344,17 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
   }
 
   if (scriptNodeMaybe.getAttribute('type') === 'application/json') {
-    try {
-      JSON.parse(scriptNodeMaybe.textContent);
-    } catch (parseError) {
-      currentState = ICON_STATE.INVALID_SOFT;
-      chrome.runtime.sendMessage({
-        type: MESSAGE_TYPE.UPDATE_ICON,
-        icon: ICON_STATE.INVALID_SOFT,
-      });
-    }
+    requestIdleCallback(() => {
+      try {
+        JSON.parse(scriptNodeMaybe.textContent);
+      } catch (parseError) {
+        currentState = ICON_STATE.INVALID_SOFT;
+        chrome.runtime.sendMessage({
+          type: MESSAGE_TYPE.UPDATE_ICON,
+          icon: ICON_STATE.INVALID_SOFT,
+        });
+      }
+    });
     return;
   }
   if (
@@ -522,7 +525,7 @@ export function hasInvalidScripts(scriptNodeMaybe, scriptList) {
   checkNodesForViolations(scriptNodeMaybe);
 
   if (scriptNodeMaybe.nodeName.toLowerCase() === 'script') {
-    window.requestIdleCallback(() => {
+    requestIdleCallback(() => {
       storeFoundJS(scriptNodeMaybe, scriptList);
     });
   } else if (scriptNodeMaybe.childNodes.length > 0) {
@@ -534,7 +537,7 @@ export function hasInvalidScripts(scriptNodeMaybe, scriptList) {
       checkNodesForViolations(childNode);
 
       if (childNode.nodeName.toLowerCase() === 'script') {
-        window.requestIdleCallback(() => {
+        requestIdleCallback(() => {
           storeFoundJS(childNode, scriptList);
         });
         return;
@@ -542,7 +545,7 @@ export function hasInvalidScripts(scriptNodeMaybe, scriptList) {
 
       Array.from(childNode.getElementsByTagName('script')).forEach(
         childScript => {
-          window.requestIdleCallback(() => {
+          requestIdleCallback(() => {
             storeFoundJS(childScript, scriptList);
           });
         }
@@ -560,7 +563,7 @@ export const scanForScripts = () => {
     checkNodesForViolations(allElement);
     // next check for existing script elements and if they're violating
     if (allElement.nodeName.toLowerCase() === 'script') {
-      window.requestIdleCallback(() => {
+      requestIdleCallback(() => {
         storeFoundJS(allElement, foundScripts);
       });
     }
@@ -607,19 +610,25 @@ export const scanForScripts = () => {
 async function processJSWithSrc(script, origin, version) {
   // fetch the script from page context, not the extension context.
   try {
+    console.log('calling process JS with src');
     const sourceResponse = await fetch(script.src, { method: 'GET' });
     // we want to clone the stream before reading it
-    const sourceResponseClone = sourceResponse.clone();
-    const fileNameArr = script.src.split('/');
-    const fileName = fileNameArr[fileNameArr.length - 1].split('?')[0];
+    if (downloadFeature) {
+      const sourceResponseClone = sourceResponse.clone();
+      const fileNameArr = script.src.split('/');
+      const fileName = fileNameArr[fileNameArr.length - 1].split('?')[0];
+      sourceScripts.set(
+        fileName,
+        sourceResponseClone.body.pipeThrough(
+          new window.CompressionStream('gzip')
+        )
+      );
+    }
     let sourceText = await sourceResponse.text();
-    sourceScripts.set(
-      fileName,
-      sourceResponseClone.body.pipeThrough(new window.CompressionStream('gzip'))
-    );
     let fbOrigin = [ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(
       origin
     );
+    console.log(`FB ORIGIN ${fbOrigin}`);
     if (fbOrigin && sourceText.indexOf('if (self.CavalryLogger) {') === 0) {
       sourceText = sourceText.slice(82).trim();
     }
@@ -638,6 +647,10 @@ async function processJSWithSrc(script, origin, version) {
     }
     // split package up if necessary
     const packages = i18nStripped.split('/*FB_PKG_DELIM*/\n');
+    if (packages[0] === '') {
+      packages.shift();
+    }
+    console.log('CHECKING');
     const packagePromises = packages.map(jsPackage => {
       return new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
@@ -666,6 +679,9 @@ async function processJSWithSrc(script, origin, version) {
       valid: true,
     };
   } catch (scriptProcessingError) {
+    console.log(
+      `script processing error ${scriptProcessingError.message} ${scriptProcessingError.stack}`
+    );
     return {
       valid: false,
       type: scriptProcessingError,
@@ -692,6 +708,7 @@ export const processFoundJS = async (origin, version) => {
       await processJSWithSrc(script, origin, version).then(response => {
         pendingScriptCount--;
         if (response.valid) {
+          console.log('valid src');
           if (pendingScriptCount == 0 && currentState == ICON_STATE.VALID) {
             chrome.runtime.sendMessage({
               type: MESSAGE_TYPE.UPDATE_ICON,
@@ -699,6 +716,7 @@ export const processFoundJS = async (origin, version) => {
             });
           }
         } else {
+          console.log(`invalid src ${script.src}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
@@ -785,44 +803,48 @@ export const processFoundJS = async (origin, version) => {
 };
 
 async function downloadJSToZip() {
-  const fileHandle = await window.showSaveFilePicker({
-    suggestedName: 'meta_source_files.gz',
-  });
+  if (downloadFeature) {
+    const fileHandle = await window.showSaveFilePicker({
+      suggestedName: 'meta_source_files.gz',
+    });
 
-  const writableStream = await fileHandle.createWritable();
-  // delimiter between files
-  const delimPrefix = '\n********** new file: ';
-  const delimSuffix = ' **********\n';
-  const enc = new TextEncoder();
+    const writableStream = await fileHandle.createWritable();
+    // delimiter between files
+    const delimPrefix = '\n********** new file: ';
+    const delimSuffix = ' **********\n';
+    const enc = new TextEncoder();
 
-  for (const [fileName, compressedStream] of sourceScripts.entries()) {
-    let delim = delimPrefix + fileName + delimSuffix;
-    let encodedDelim = enc.encode(delim);
-    let delimStream = new window.CompressionStream('gzip');
-    let writer = delimStream.writable.getWriter();
-    writer.write(encodedDelim);
-    writer.close();
-    await delimStream.readable.pipeTo(writableStream, { preventClose: true });
-    await compressedStream.pipeTo(writableStream, { preventClose: true });
+    for (const [fileName, compressedStream] of sourceScripts.entries()) {
+      let delim = delimPrefix + fileName + delimSuffix;
+      let encodedDelim = enc.encode(delim);
+      let delimStream = new window.CompressionStream('gzip');
+      let writer = delimStream.writable.getWriter();
+      writer.write(encodedDelim);
+      writer.close();
+      await delimStream.readable.pipeTo(writableStream, { preventClose: true });
+      await compressedStream.pipeTo(writableStream, { preventClose: true });
+    }
+
+    for (const inlineSrcMap of inlineScripts) {
+      let inlineHash = inlineSrcMap.keys().next().value;
+      let inlineSrc = inlineSrcMap.values().next().value;
+      let delim = delimPrefix + 'Inline Script ' + inlineHash + delimSuffix;
+      let encodedDelim = enc.encode(delim);
+      let delimStream = new window.CompressionStream('gzip');
+      let delimWriter = delimStream.writable.getWriter();
+      delimWriter.write(encodedDelim);
+      delimWriter.close();
+      await delimStream.readable.pipeTo(writableStream, { preventClose: true });
+      let inlineStream = new window.CompressionStream('gzip');
+      let writer = inlineStream.writable.getWriter();
+      writer.write(enc.encode(inlineSrc));
+      writer.close();
+      await inlineStream.readable.pipeTo(writableStream, {
+        preventClose: true,
+      });
+    }
+    writableStream.close();
   }
-
-  for (const inlineSrcMap of inlineScripts) {
-    let inlineHash = inlineSrcMap.keys().next().value;
-    let inlineSrc = inlineSrcMap.values().next().value;
-    let delim = delimPrefix + 'Inline Script ' + inlineHash + delimSuffix;
-    let encodedDelim = enc.encode(delim);
-    let delimStream = new window.CompressionStream('gzip');
-    let delimWriter = delimStream.writable.getWriter();
-    delimWriter.write(encodedDelim);
-    delimWriter.close();
-    await delimStream.readable.pipeTo(writableStream, { preventClose: true });
-    let inlineStream = new window.CompressionStream('gzip');
-    let writer = inlineStream.writable.getWriter();
-    writer.write(enc.encode(inlineSrc));
-    writer.close();
-    await inlineStream.readable.pipeTo(writableStream, { preventClose: true });
-  }
-  writableStream.close();
 }
 
 chrome.runtime.onMessage.addListener(function (request) {
@@ -833,6 +855,11 @@ chrome.runtime.onMessage.addListener(function (request) {
 
 export function startFor(origin) {
   currentOrigin = origin;
+  try {
+    new window.CompressionStream('gzip');
+  } catch (streamError) {
+    downloadFeature = false;
+  }
   scanForScripts();
   manifestTimeoutID = setTimeout(() => {
     // Manifest failed to load, flag a warning to the user.
