@@ -255,6 +255,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     scriptNodeMaybe.id === 'binary-transparency-manifest' ||
     scriptNodeMaybe.getAttribute('name') === 'binary-transparency-manifest'
   ) {
+    console.log('binary transparency manifest found');
     let rawManifest = '';
     try {
       rawManifest = JSON.parse(scriptNodeMaybe.innerHTML);
@@ -654,6 +655,7 @@ async function processJSWithSrc(script, origin, version) {
       valid: true,
     };
   } catch (scriptProcessingError) {
+    console.log(`script processing error ${scriptProcessingError.message}`);
     return {
       valid: false,
       type: scriptProcessingError,
@@ -662,8 +664,10 @@ async function processJSWithSrc(script, origin, version) {
 }
 
 export const processFoundJS = async (origin, version) => {
+  console.log('processing found js');
   // foundScripts
   const fullscripts = foundScripts.get(version).splice(0);
+  console.log(`LENGTH ${fullscripts.length} ${version} ${currentFilterType}`);
   const scripts = fullscripts.filter(script => {
     if (
       script.otherType === currentFilterType ||
@@ -674,12 +678,17 @@ export const processFoundJS = async (origin, version) => {
       foundScripts.get(version).push(script);
     }
   });
+
   let pendingScriptCount = scripts.length;
+  console.log(`script count ${pendingScriptCount}`);
   for (const script of scripts) {
+    console.log('FOUND SCRIPT ');
     if (script.src) {
+      console.log('found source script');
       await processJSWithSrc(script, origin, version).then(response => {
         pendingScriptCount--;
         if (response.valid) {
+          console.log('valid src');
           if (pendingScriptCount == 0 && currentState == ICON_STATE.VALID) {
             chrome.runtime.sendMessage({
               type: MESSAGE_TYPE.UPDATE_ICON,
