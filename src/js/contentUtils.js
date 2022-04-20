@@ -610,7 +610,6 @@ export const scanForScripts = () => {
 async function processJSWithSrc(script, origin, version) {
   // fetch the script from page context, not the extension context.
   try {
-    console.log('calling process JS with src');
     const sourceResponse = await fetch(script.src, { method: 'GET' });
     // we want to clone the stream before reading it
     if (downloadFeature) {
@@ -628,7 +627,6 @@ async function processJSWithSrc(script, origin, version) {
     let fbOrigin = [ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(
       origin
     );
-    console.log(`FB ORIGIN ${fbOrigin}`);
     if (fbOrigin && sourceText.indexOf('if (self.CavalryLogger) {') === 0) {
       sourceText = sourceText.slice(82).trim();
     }
@@ -650,7 +648,6 @@ async function processJSWithSrc(script, origin, version) {
     if (packages[0] === '') {
       packages.shift();
     }
-    console.log('CHECKING');
     const packagePromises = packages.map(jsPackage => {
       return new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
@@ -679,9 +676,6 @@ async function processJSWithSrc(script, origin, version) {
       valid: true,
     };
   } catch (scriptProcessingError) {
-    console.log(
-      `script processing error ${scriptProcessingError.message} ${scriptProcessingError.stack}`
-    );
     return {
       valid: false,
       type: scriptProcessingError,
@@ -708,7 +702,6 @@ export const processFoundJS = async (origin, version) => {
       await processJSWithSrc(script, origin, version).then(response => {
         pendingScriptCount--;
         if (response.valid) {
-          console.log('valid src');
           if (pendingScriptCount == 0 && currentState == ICON_STATE.VALID) {
             chrome.runtime.sendMessage({
               type: MESSAGE_TYPE.UPDATE_ICON,
@@ -716,7 +709,6 @@ export const processFoundJS = async (origin, version) => {
             });
           }
         } else {
-          console.log(`invalid src ${script.src}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
