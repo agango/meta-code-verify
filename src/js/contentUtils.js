@@ -315,6 +315,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
         });
         // then start processing of it's JS
         if (response.valid) {
+          console.log('manifest processed valid response');
           if (manifestTimeoutID !== '') {
             clearTimeout(manifestTimeoutID);
             manifestTimeoutID = '';
@@ -631,8 +632,13 @@ async function processJSWithSrc(script, origin, version) {
     }
     // split package up if necessary
     const packages = i18nStripped.split('/*FB_PKG_DELIM*/\n');
+    console.log(`number of packages in src: ${packages.length}`);
+    if (packages[0] === '') {
+      packages.shift();
+    }
     const packagePromises = packages.map(jsPackage => {
       return new Promise((resolve, reject) => {
+        console.log('sending package ');
         chrome.runtime.sendMessage(
           {
             type: MESSAGE_TYPE.RAW_JS,
@@ -642,15 +648,21 @@ async function processJSWithSrc(script, origin, version) {
           },
           response => {
             if (response.valid) {
+              console.log('valid response for src script');
               resolve();
             } else {
+              console.log(
+                `invalid response for src script ${script.src} ${jsPackage} ${response.hash} ${response.reason}`
+              );
               reject(response.type);
             }
           }
         );
       });
     });
+    console.log('before await call');
     await Promise.all(packagePromises);
+    console.log('awaiting package promises done');
     return {
       valid: true,
     };
@@ -669,10 +681,7 @@ export const processFoundJS = async (origin, version) => {
   const fullscripts = foundScripts.get(version).splice(0);
   console.log(`LENGTH ${fullscripts.length} ${version} ${currentFilterType}`);
   const scripts = fullscripts.filter(script => {
-    if (
-      script.otherType === currentFilterType ||
-      ['BOTH', ''].includes(currentFilterType)
-    ) {
+    if (currentFilterType != '') {
       return true;
     } else {
       foundScripts.get(version).push(script);
@@ -686,6 +695,7 @@ export const processFoundJS = async (origin, version) => {
     if (script.src) {
       console.log('found source script');
       await processJSWithSrc(script, origin, version).then(response => {
+        console.log('process js with src finished');
         pendingScriptCount--;
         if (response.valid) {
           console.log('valid src');
@@ -721,6 +731,7 @@ export const processFoundJS = async (origin, version) => {
         });
       });
     } else {
+      console.log('found inline script');
       chrome.runtime.sendMessage(
         {
           type: script.type,
