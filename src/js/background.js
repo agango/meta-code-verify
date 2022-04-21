@@ -460,6 +460,7 @@ export function handleMessages(message, sender, sendResponse) {
       'SSRInit',
       'Adblock Plus',
       'Chrome will not run content scripts inside of frames',
+      'adp_Comet',
     ];
     let inAllowList = false;
     allowList.forEach(element => {
@@ -468,7 +469,7 @@ export function handleMessages(message, sender, sendResponse) {
         inAllowList = true;
       }
     });
-    if (inAllowList) {
+    if (inAllowList && message.inline) {
       console.log('in allowlist');
       sendResponse({ valid: false, reason: 'inline scripts in allowlist' });
       return;

@@ -653,19 +653,19 @@ async function processJSWithSrc(script, origin, version) {
         chrome.runtime.sendMessage(
           {
             type: MESSAGE_TYPE.RAW_JS,
-            rawjs: jsPackage,
+            rawjs: jsPackage.trim(),
             origin: origin,
             version: version,
+            inline: false,
           },
           response => {
             if (response.valid) {
               resolve();
             } else {
-              if (response.reason === 'inline scripts in allowlist') {
-                resolve();
-              } else {
-                reject(response.type);
-              }
+              console.log(
+                `INVALID ${script.src} ${jsPackage} ${response.hash}`
+              );
+              reject();
             }
           }
         );
@@ -709,6 +709,7 @@ export const processFoundJS = async (origin, version) => {
             });
           }
         } else {
+          console.log(`invalid src ${script.src}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
@@ -740,6 +741,7 @@ export const processFoundJS = async (origin, version) => {
           lookupKey: script.lookupKey,
           origin: origin,
           version: version,
+          inline: true,
         },
         response => {
           pendingScriptCount--;
