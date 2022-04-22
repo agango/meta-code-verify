@@ -687,10 +687,7 @@ export const processFoundJS = async (origin, version) => {
   // foundScripts
   const fullscripts = foundScripts.get(version).splice(0);
   const scripts = fullscripts.filter(script => {
-    if (
-      script.otherType === currentFilterType ||
-      ['BOTH', ''].includes(currentFilterType)
-    ) {
+    if (currentFilterType != '') {
       return true;
     } else {
       foundScripts.get(version).push(script);
