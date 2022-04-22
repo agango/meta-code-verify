@@ -470,7 +470,7 @@ export function handleMessages(message, sender, sendResponse) {
         inAllowList = true;
       }
     });
-    if (inAllowList) {
+    if (inAllowList && message.inline) {
       sendResponse({ valid: false, reason: 'inline scripts in allowList' });
       return;
     }
