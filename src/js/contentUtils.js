@@ -256,7 +256,6 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     scriptNodeMaybe.id === 'binary-transparency-manifest' ||
     scriptNodeMaybe.getAttribute('name') === 'binary-transparency-manifest'
   ) {
-    console.log('binary transparency manifest found');
     let rawManifest = '';
     try {
       rawManifest = JSON.parse(scriptNodeMaybe.innerHTML);
@@ -316,7 +315,6 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
         });
         // then start processing of it's JS
         if (response.valid) {
-          console.log('manifest processed valid response');
           if (manifestTimeoutID !== '') {
             clearTimeout(manifestTimeoutID);
             manifestTimeoutID = '';
@@ -604,13 +602,15 @@ async function processJSWithSrc(script, origin, version) {
   try {
     const sourceResponse = await fetch(script.src, { method: 'GET' });
     if (downloadFeature) {
-    // we want to clone the stream before reading it
+      // we want to clone the stream before reading it
       const sourceResponseClone = sourceResponse.clone();
       const fileNameArr = script.src.split('/');
       const fileName = fileNameArr[fileNameArr.length - 1].split('?')[0];
       sourceScripts.set(
         fileName,
-        sourceResponseClone.body.pipeThrough(new window.CompressionStream('gzip'))
+        sourceResponseClone.body.pipeThrough(
+          new window.CompressionStream('gzip')
+        )
       );
     }
     let sourceText = await sourceResponse.text();
@@ -635,13 +635,11 @@ async function processJSWithSrc(script, origin, version) {
     }
     // split package up if necessary
     const packages = i18nStripped.split('/*FB_PKG_DELIM*/\n');
-    console.log(`number of packages in src: ${packages.length}`);
     if (packages[0] === '') {
       packages.shift();
     }
     const packagePromises = packages.map(jsPackage => {
       return new Promise((resolve, reject) => {
-        console.log('sending package ');
         chrome.runtime.sendMessage(
           {
             type: MESSAGE_TYPE.RAW_JS,
@@ -652,26 +650,19 @@ async function processJSWithSrc(script, origin, version) {
           },
           response => {
             if (response.valid) {
-              console.log('valid response for src script');
               resolve();
             } else {
-              console.log(
-                `invalid response for src script ${script.src} ${jsPackage} ${response.hash} ${response.reason}`
-              );
               reject(response.type);
             }
           }
         );
       });
     });
-    console.log('before await call');
     await Promise.allSettled(packagePromises);
-    console.log('awaiting package promises done');
     return {
       valid: true,
     };
   } catch (scriptProcessingError) {
-    console.log(`script processing error ${scriptProcessingError.message}`);
     return {
       valid: false,
       type: scriptProcessingError,
@@ -680,10 +671,8 @@ async function processJSWithSrc(script, origin, version) {
 }
 
 export const processFoundJS = async (origin, version) => {
-  console.log('processing found js');
   // foundScripts
   const fullscripts = foundScripts.get(version).splice(0);
-  console.log(`LENGTH ${fullscripts.length} ${version} ${currentFilterType}`);
   const scripts = fullscripts.filter(script => {
     if (currentFilterType != '') {
       return true;
@@ -693,16 +682,11 @@ export const processFoundJS = async (origin, version) => {
   });
 
   let pendingScriptCount = scripts.length;
-  console.log(`script count ${pendingScriptCount}`);
   for (const script of scripts) {
-    console.log('FOUND SCRIPT ');
     if (script.src) {
-      console.log('found source script');
       await processJSWithSrc(script, origin, version).then(response => {
-        console.log('process js with src finished');
         pendingScriptCount--;
         if (response.valid) {
-          console.log('valid src');
           if (pendingScriptCount == 0 && currentState == ICON_STATE.VALID) {
             chrome.runtime.sendMessage({
               type: MESSAGE_TYPE.UPDATE_ICON,
@@ -710,7 +694,6 @@ export const processFoundJS = async (origin, version) => {
             });
           }
         } else {
-          console.log(`invalid src ${script.src}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
@@ -735,7 +718,6 @@ export const processFoundJS = async (origin, version) => {
         });
       });
     } else {
-      console.log('found inline script');
       chrome.runtime.sendMessage(
         {
           type: script.type,
@@ -768,7 +750,6 @@ export const processFoundJS = async (origin, version) => {
                 icon: ICON_STATE.WARNING_RISK,
               });
             } else if (response.reason === 'inline scripts in allowList') {
-              console.log('inline in allowlist');
               if (currentState == ICON_STATE.VALID) {
                 currentState = ICON_STATE.KNOWN_WARNING;
                 chrome.runtime.sendMessage({
@@ -777,7 +758,6 @@ export const processFoundJS = async (origin, version) => {
                 });
               }
             } else {
-              console.log(`invalid inline ${script.rawjs}`);
               currentState = ICON_STATE.INVALID_SOFT;
               chrome.runtime.sendMessage({
                 type: MESSAGE_TYPE.UPDATE_ICON,
