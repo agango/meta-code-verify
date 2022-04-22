@@ -661,7 +661,7 @@ async function processJSWithSrc(script, origin, version) {
       });
     });
     console.log('before await call');
-    await Promise.all(packagePromises);
+    await Promise.allSettled(packagePromises);
     console.log('awaiting package promises done');
     return {
       valid: true,
