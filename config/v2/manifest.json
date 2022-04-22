@@ -1,28 +1,29 @@
 {
-    "manifest_version": 3,
+    "manifest_version": 2,
     "name": "Code Verify",
     "version": "1.0.3",
     "default_locale": "en",
     "description": "An extension to verify the code running in your browser matches what was published.",
-    "action": {
+    "page_action": {
         "default_title": "Code Verify",
         "default_icon": {
-            "32": "default_32.png",
-            "64": "default_64.png",
-           "128": "default_64@2x.png"
+            "32": "temporary-extension-icon32.png",
+            "48": "temporary-extension-icon48.png",
+           "128": "temporary-extension-icon128.png"
         },
         "default_popup": "loading.html"
     },
     "icons":  {
-        "32": "default_32.png",
-        "64": "default_64.png",
-        "128": "default_64@2x.png"
+        "32": "temporary-extension-icon32.png",
+        "48": "temporary-extension-icon48.png",
+       "128": "temporary-extension-icon128.png"
     },
     "background": {
-        "service_worker": "background.js"
+        "persistent": true,
+        "scripts": ["background.js"]
     },
     "content_scripts": [
-        {
+	{
             "matches": ["*://*.messenger.com/*"],
 	    "all_frames": true,
             "js": ["contentMSGR.js"],
@@ -30,16 +31,15 @@
         },
         {
             "matches": ["*://*.whatsapp.com/*"],
-	    "all_frames": true,
+            "all_frames": true,
             "exclude_matches": ["*://www.whatsapp.com/", "*://*.whatsapp.com/bt-manifest/*"],
             "js": ["contentWA.js"],
             "run_at": "document_start"
         }
     ],
     "permissions": [
-        "tabs"
-    ],
-    "host_permissions": [
-        "https://*.privacy-auditability.cloudflare.com/"
+        "https://*.privacy-auditability.cloudflare.com/",
+        "https://web.whatsapp.com/",
+        "https://static.xx.fbcdn.net/*"
     ]
 }

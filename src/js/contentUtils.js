@@ -240,6 +240,7 @@ const DOM_EVENTS = [
   'onwheel',
 ];
 
+let downloadFeature = true;
 const sourceScripts = new Map();
 const inlineScripts = [];
 const foundScripts = new Map();
@@ -602,15 +603,17 @@ async function processJSWithSrc(script, origin, version) {
   // fetch the script from page context, not the extension context.
   try {
     const sourceResponse = await fetch(script.src, { method: 'GET' });
+    if (downloadFeature) {
     // we want to clone the stream before reading it
-    const sourceResponseClone = sourceResponse.clone();
-    const fileNameArr = script.src.split('/');
-    const fileName = fileNameArr[fileNameArr.length - 1].split('?')[0];
+      const sourceResponseClone = sourceResponse.clone();
+      const fileNameArr = script.src.split('/');
+      const fileName = fileNameArr[fileNameArr.length - 1].split('?')[0];
+      sourceScripts.set(
+        fileName,
+        sourceResponseClone.body.pipeThrough(new window.CompressionStream('gzip'))
+      );
+    }
     let sourceText = await sourceResponse.text();
-    sourceScripts.set(
-      fileName,
-      sourceResponseClone.body.pipeThrough(new window.CompressionStream('gzip'))
-    );
     let fbOrigin = [ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(
       origin
     );
@@ -846,6 +849,11 @@ chrome.runtime.onMessage.addListener(function (request) {
 
 export function startFor(origin) {
   currentOrigin = origin;
+  try {
+    new window.CompressionStream('gzip');
+  } catch (streamError) {
+    downloadFeature = false;
+  }
   scanForScripts();
   manifestTimeoutID = setTimeout(() => {
     // Manifest failed to load, flag a warning to the user.
