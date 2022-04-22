@@ -444,7 +444,6 @@ export function handleMessages(message, sender, sendResponse) {
   }
 
   if (message.type == MESSAGE_TYPE.RAW_JS) {
-    console.log('RAW JS');
     const origin = manifestCache.get(message.origin);
     const allowList = [
       'requireLazy',
@@ -470,11 +469,9 @@ export function handleMessages(message, sender, sendResponse) {
       }
     });
     if (inAllowList && message.inline) {
-      console.log('in allowlist');
       sendResponse({ valid: false, reason: 'inline scripts in allowlist' });
       return;
     }
-    console.log('past in allowlist portion');
     if (!origin) {
       addDebugLog(
         sender.tab.id,
@@ -486,7 +483,6 @@ export function handleMessages(message, sender, sendResponse) {
     const manifestObj = origin.get(message.version);
     const manifest = manifestObj && manifestObj.leaves;
     if (!manifest) {
-      console.log('no matching manifest');
       addDebugLog(
         sender.tab.id,
         'Error: JS with SRC had no matching manifest. origin: ' +
@@ -501,7 +497,6 @@ export function handleMessages(message, sender, sendResponse) {
     // fetch the src
     const encoder = new TextEncoder();
     const encodedJS = encoder.encode(message.rawjs);
-    console.log('message raw js');
     // hash the src
     crypto.subtle.digest('SHA-256', encodedJS).then(jsHashBuffer => {
       const jsHashArray = Array.from(new Uint8Array(jsHashBuffer));
@@ -510,10 +505,8 @@ export function handleMessages(message, sender, sendResponse) {
         .join('');
 
       if (manifestObj.leaves.includes(jsHash)) {
-        console.log(`manifest includes hash ${jsHash} ${message.rawjs}`);
         sendResponse({ valid: true });
       } else {
-        console.log(`inline src not found ${jsHash} ${message.rawjs}`);
         addDebugLog(
           sender.tab.id,
           'Error: hash does not match ' +

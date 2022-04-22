@@ -662,9 +662,6 @@ async function processJSWithSrc(script, origin, version) {
             if (response.valid) {
               resolve();
             } else {
-              console.log(
-                `INVALID ${script.src} ${jsPackage} ${response.hash}`
-              );
               reject();
             }
           }
@@ -706,7 +703,6 @@ export const processFoundJS = async (origin, version) => {
             });
           }
         } else {
-          console.log(`invalid src ${script.src}`);
           if (response.type === 'EXTENSION') {
             currentState = ICON_STATE.WARNING_RISK;
             chrome.runtime.sendMessage({
