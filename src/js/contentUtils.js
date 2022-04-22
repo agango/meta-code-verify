@@ -671,7 +671,7 @@ async function processJSWithSrc(script, origin, version) {
         );
       });
     });
-    await Promise.all(packagePromises);
+    await Promise.allSettled(packagePromises);
     return {
       valid: true,
     };
