@@ -273,6 +273,13 @@ header {
   margin: 0;
 }
 
+.known_warning_body {
+  width: 262px;
+  height: 216px;
+  background: #FFFFFF;
+  margin: 0;
+}
+
 .warning_body_image {
   height: 32px;
   margin-top: 24px;
