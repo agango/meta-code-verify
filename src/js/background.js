@@ -460,7 +460,7 @@ export function handleMessages(message, sender, sendResponse) {
       'SSRInit',
       'Adblock Plus',
       'Chrome will not run content scripts inside of frames',
-      'adp_Comet',
+      'adp_',
     ];
     let inAllowList = false;
     allowList.forEach(element => {
