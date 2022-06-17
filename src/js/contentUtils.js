@@ -256,6 +256,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     scriptNodeMaybe.id === 'binary-transparency-manifest' ||
     scriptNodeMaybe.getAttribute('name') === 'binary-transparency-manifest'
   ) {
+    console.log("FOUND BINARY TRANSPARENCY MANIFEST");
     let rawManifest = '';
     try {
       rawManifest = JSON.parse(scriptNodeMaybe.innerHTML);
@@ -326,6 +327,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
               response.reason
             )
           ) {
+            console.log('endpoint failure or unknown endpoint issue');
             currentState = ICON_STATE.WARNING_TIMEOUT;
             chrome.runtime.sendMessage({
               type: MESSAGE_TYPE.UPDATE_ICON,
@@ -850,6 +852,7 @@ export function startFor(origin) {
   scanForScripts();
   manifestTimeoutID = setTimeout(() => {
     // Manifest failed to load, flag a warning to the user.
+    console.log('manifest timeout failure');
     currentState = ICON_STATE.WARNING_TIMEOUT;
     chrome.runtime.sendMessage({
       type: MESSAGE_TYPE.UPDATE_ICON,
