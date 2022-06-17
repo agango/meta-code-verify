@@ -256,11 +256,12 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     scriptNodeMaybe.id === 'binary-transparency-manifest' ||
     scriptNodeMaybe.getAttribute('name') === 'binary-transparency-manifest'
   ) {
-    console.log("FOUND BINARY TRANSPARENCY MANIFEST");
+    console.log('FOUND BINARY TRANSPARENCY MANIFEST');
     let rawManifest = '';
     try {
       rawManifest = JSON.parse(scriptNodeMaybe.innerHTML);
     } catch (manifestParseError) {
+      console.log('manifest parse error');
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -316,12 +317,16 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
         });
         // then start processing of it's JS
         if (response.valid) {
+          console.log('processed manifest successfully');
+          console.log(`manifest timeout id ${manifestTimeoutID}`);
           if (manifestTimeoutID !== '') {
+            console.log('clearing manifest timeout');
             clearTimeout(manifestTimeoutID);
             manifestTimeoutID = '';
           }
           window.setTimeout(() => processFoundJS(currentOrigin, version), 0);
         } else {
+          console.log('processed manifest unsuccessfully');
           if (
             ['ENDPOINT_FAILURE', 'UNKNOWN_ENDPOINT_ISSUE'].includes(
               response.reason
@@ -335,6 +340,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
             });
             return;
           }
+          console.log('invalid response to parsing manifest');
           currentState = ICON_STATE.INVALID_SOFT;
           chrome.runtime.sendMessage({
             type: MESSAGE_TYPE.UPDATE_ICON,
@@ -350,6 +356,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
       try {
         JSON.parse(scriptNodeMaybe.textContent);
       } catch (parseError) {
+        console.log('json parse error with application/json');
         currentState = ICON_STATE.INVALID_SOFT;
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.UPDATE_ICON,
@@ -365,6 +372,7 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
     scriptNodeMaybe.src.indexOf('blob:') === 0
   ) {
     // TODO: try to process the blob. For now, flag as warning.
+    console.log('unable to process blob');
     currentState = ICON_STATE.INVALID_SOFT;
     chrome.runtime.sendMessage({
       type: MESSAGE_TYPE.UPDATE_ICON,
@@ -450,6 +458,9 @@ export function hasViolatingJavaScriptURI(htmlElement) {
         type: MESSAGE_TYPE.DEBUG,
         log: 'violating attribute: javascript url in anchor tag',
       });
+      console.log(
+        `check URL flagged with attribute ${htmlElement.nodeName} ${checkURL}`
+      );
       currentState = ICON_STATE.INVALID_SOFT;
       chrome.runtime.sendMessage({
         type: MESSAGE_TYPE.UPDATE_ICON,
@@ -496,6 +507,9 @@ export function hasInvalidAttributes(htmlElement) {
             ' from element ' +
             htmlElement.outerHTML,
         });
+        console.log(
+          `invalid attribute found ${htmlElement.nodeName} ${elementAttribute.localName}`
+        );
         currentState = ICON_STATE.INVALID_SOFT;
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.UPDATE_ICON,
@@ -580,6 +594,7 @@ export const scanForScripts = () => {
             hasInvalidScripts(checkScript, foundScripts);
           });
         } else if (mutation.type === 'attributes') {
+          console.log('invalid attribute added as mutation');
           currentState = ICON_STATE.INVALID_SOFT;
           chrome.runtime.sendMessage({
             type: MESSAGE_TYPE.UPDATE_ICON,
@@ -601,6 +616,7 @@ export const scanForScripts = () => {
       subtree: true,
     });
   } catch (_UnknownError) {
+    console.log('unknown mutation error');
     currentState = ICON_STATE.INVALID_SOFT;
     chrome.runtime.sendMessage({
       type: MESSAGE_TYPE.UPDATE_ICON,
@@ -712,6 +728,7 @@ export const processFoundJS = async (origin, version) => {
               icon: ICON_STATE.WARNING_RISK,
             });
           } else {
+            console.log('src script invalid');
             currentState = ICON_STATE.INVALID_SOFT;
             chrome.runtime.sendMessage({
               type: MESSAGE_TYPE.UPDATE_ICON,
@@ -769,6 +786,7 @@ export const processFoundJS = async (origin, version) => {
                 });
               }
             } else {
+              console.log('unknown inline script');
               currentState = ICON_STATE.INVALID_SOFT;
               chrome.runtime.sendMessage({
                 type: MESSAGE_TYPE.UPDATE_ICON,
@@ -843,6 +861,7 @@ chrome.runtime.onMessage.addListener(function (request) {
 });
 
 export function startFor(origin) {
+  console.log('start for called');
   currentOrigin = origin;
   try {
     new window.CompressionStream('gzip');
@@ -850,15 +869,20 @@ export function startFor(origin) {
     downloadFeature = false;
   }
   scanForScripts();
-  manifestTimeoutID = setTimeout(() => {
+  console.log('setting manifest timeout id');
+  if (manifestTimeoutID === ''){
+    manifestTimeoutID = setTimeout(() => {
     // Manifest failed to load, flag a warning to the user.
-    console.log('manifest timeout failure');
-    currentState = ICON_STATE.WARNING_TIMEOUT;
-    chrome.runtime.sendMessage({
-      type: MESSAGE_TYPE.UPDATE_ICON,
-      icon: ICON_STATE.WARNING_TIMEOUT,
-    });
-  }, 45000);
+    if (currentState != ICON_STATE.INVALID_SOFT) {
+      currentState = ICON_STATE.WARNING_TIMEOUT;
+      chrome.runtime.sendMessage({
+        type: MESSAGE_TYPE.UPDATE_ICON,
+        icon: ICON_STATE.WARNING_TIMEOUT,
+      });
+    } 
+    }, 45000);
+  }
+  console.log(`SET MANIFEST TIMEOUT ID ${manifestTimeoutID}`);
 }
 
 chrome.runtime.sendMessage({
