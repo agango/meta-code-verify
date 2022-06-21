@@ -870,16 +870,16 @@ export function startFor(origin) {
   }
   scanForScripts();
   console.log('setting manifest timeout id');
-  if (manifestTimeoutID === ''){
+  if (manifestTimeoutID === '') {
     manifestTimeoutID = setTimeout(() => {
-    // Manifest failed to load, flag a warning to the user.
-    if (currentState != ICON_STATE.INVALID_SOFT) {
-      currentState = ICON_STATE.WARNING_TIMEOUT;
-      chrome.runtime.sendMessage({
-        type: MESSAGE_TYPE.UPDATE_ICON,
-        icon: ICON_STATE.WARNING_TIMEOUT,
-      });
-    } 
+      // Manifest failed to load, flag a warning to the user.
+      if (currentState != ICON_STATE.INVALID_SOFT) {
+        currentState = ICON_STATE.WARNING_TIMEOUT;
+        chrome.runtime.sendMessage({
+          type: MESSAGE_TYPE.UPDATE_ICON,
+          icon: ICON_STATE.WARNING_TIMEOUT,
+        });
+      }
     }, 45000);
   }
   console.log(`SET MANIFEST TIMEOUT ID ${manifestTimeoutID}`);
