@@ -356,7 +356,9 @@ export function storeFoundJS(scriptNodeMaybe, scriptList) {
       try {
         JSON.parse(scriptNodeMaybe.textContent);
       } catch (parseError) {
-        console.log('json parse error with application/json');
+        console.log(
+          `json parse error with application/json ${scriptNodeMaybe.textContent}`
+        );
         currentState = ICON_STATE.INVALID_SOFT;
         chrome.runtime.sendMessage({
           type: MESSAGE_TYPE.UPDATE_ICON,
@@ -491,7 +493,7 @@ export function hasInvalidAttributes(htmlElement) {
           elementAttribute.localName == 'onerror' ||
           elementAttribute.localName == 'onload'
         ) {
-          if (elementAttribute.value.indexOf('_btldr') < 0) {
+          if (elementAttribute.value.indexOf('btldr') < 0) {
             invalidAttribute = true;
           }
         } else {
@@ -508,7 +510,9 @@ export function hasInvalidAttributes(htmlElement) {
             htmlElement.outerHTML,
         });
         console.log(
-          `invalid attribute found ${htmlElement.nodeName} ${elementAttribute.localName}`
+          `invalid attribute found ${htmlElement.nodeName} ${
+            elementAttribute.localName
+          } ${elementAttribute.value.indexOf('_btldr')}`
         );
         currentState = ICON_STATE.INVALID_SOFT;
         chrome.runtime.sendMessage({
