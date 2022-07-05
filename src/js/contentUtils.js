@@ -534,10 +534,10 @@ export function hasInvalidAttributes(htmlElement) {
   // check child nodes as well, since a malicious attacker could try to inject an invalid attribute via an image node in a svg tag
   if (htmlElement.childNodes.length > 0) {
     htmlElement.childNodes.forEach(childNode => {
-      if (childNode.nodeType === 1){
+      if (childNode.nodeType === 1) {
         hasInvalidAttributes(childNode);
       }
-    })
+    });
   }
 }
 
@@ -875,28 +875,46 @@ chrome.runtime.onMessage.addListener(function (request) {
 });
 
 export function startFor(origin) {
-  console.log('start for called');
-  currentOrigin = origin;
-  try {
-    new window.CompressionStream('gzip');
-  } catch (streamError) {
-    downloadFeature = false;
-  }
-  scanForScripts();
-  console.log('setting manifest timeout id');
-  if (manifestTimeoutID === '') {
-    manifestTimeoutID = setTimeout(() => {
-      // Manifest failed to load, flag a warning to the user.
-      if (currentState != ICON_STATE.INVALID_SOFT) {
-        currentState = ICON_STATE.WARNING_TIMEOUT;
-        chrome.runtime.sendMessage({
-          type: MESSAGE_TYPE.UPDATE_ICON,
-          icon: ICON_STATE.WARNING_TIMEOUT,
-        });
+  let isUserLoggedIn = false;
+  if ([ORIGIN_TYPE.FACEBOOK, ORIGIN_TYPE.MESSENGER].includes(origin)) {
+    const cookies = document.cookie.split(';');
+    console.log(`cookies ${cookies}`);
+    cookies.forEach(cookie => {
+      let pair = cookie.split('=');
+      // c_user contains the user id of the user logged in
+      console.log(pair);
+      if (pair[0].indexOf('c_user') >= 0) {
+        console.log('CHECKING');
+        isUserLoggedIn = true;
       }
-    }, 45000);
+    });
+  } else {
+    // only doing this check for FB and MSGR
+    isUserLoggedIn = true;
   }
-  console.log(`SET MANIFEST TIMEOUT ID ${manifestTimeoutID}`);
+  if (isUserLoggedIn) {
+    console.log('start for called');
+    currentOrigin = origin;
+    try {
+      new window.CompressionStream('gzip');
+    } catch (streamError) {
+      downloadFeature = false;
+    }
+    scanForScripts();
+    console.log('setting manifest timeout id');
+    if (manifestTimeoutID === '') {
+      manifestTimeoutID = setTimeout(() => {
+        // Manifest failed to load, flag a warning to the user.
+        if (currentState != ICON_STATE.INVALID_SOFT) {
+          currentState = ICON_STATE.WARNING_TIMEOUT;
+          chrome.runtime.sendMessage({
+            type: MESSAGE_TYPE.UPDATE_ICON,
+            icon: ICON_STATE.WARNING_TIMEOUT,
+          });
+        }
+      }, 45000);
+    }
+  }
 }
 
 chrome.runtime.sendMessage({
