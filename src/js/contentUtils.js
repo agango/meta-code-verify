@@ -249,6 +249,7 @@ let currentState = ICON_STATE.VALID;
 let currentOrigin = '';
 let currentFilterType = '';
 let manifestTimeoutID = '';
+let jsonElements = new Set();
 
 export function storeFoundJS(scriptNodeMaybe, scriptList) {
   // check if it's the manifest node
@@ -603,11 +604,19 @@ export const scanForScripts = () => {
     // track any new scripts that get loaded in
     const scriptMutationObserver = new MutationObserver(mutationsList => {
       mutationsList.forEach(mutation => {
-        console.log(`FOUND MUTATION: ${mutation.type}`);
+        if (mutation.type === 'characterData') {
+          console.log(
+            `CHARACTER DATA ${mutation.target} ${mutation.target.data}`
+          );
+          if (jsonElements.has(mutation.target)) console.log('FOUND JSON NODE');
+        }
         if (mutation.type === 'childList') {
           Array.from(mutation.addedNodes).forEach(checkScript => {
             if (checkScript.type === 'application/json') {
-              console.log(`application json mutation ${checkScript.name} ${checkScript.id}`);
+              jsonElements.add(checkScript);
+              console.log(
+                `adding application/json node ${checkScript} ${checkScript.textContent}`
+              );
             }
             hasInvalidScripts(checkScript, foundScripts);
           });
@@ -623,18 +632,16 @@ export const scanForScripts = () => {
         }
       });
     });
+
     scriptMutationObserver.observe(document, {
       attributeFilter: DOM_EVENTS,
       childList: true,
+      characterData: true,
       subtree: true,
     });
   } catch (_UnknownError) {
-    //console.log('unknown mutation error');
-    currentState = ICON_STATE.INVALID_SOFT;
-    chrome.runtime.sendMessage({
-      type: MESSAGE_TYPE.UPDATE_ICON,
-      icon: ICON_STATE.INVALID_SOFT,
-    });
+    console.log('error');
+    //updateCurrentState(ICON_STATE.INVALID_SOFT);
   }
 };
 
